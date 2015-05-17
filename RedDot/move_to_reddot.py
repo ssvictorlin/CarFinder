@@ -40,8 +40,8 @@ class MoveToCar:
         # some thresholds to be tuned
 	    self.max_target_area = 10000
 	    self.min_target_area = 500
-        self.max_speed = 3.0
-	    self.min_speed = 0.5
+        self.max_speed = 1.5
+	    self.min_speed = 0.2
 	    self.speed_ratio = 50
 	
         # target info
@@ -50,7 +50,7 @@ class MoveToCar:
         self.ypos = None
         self.guided_target_vel = None
         self.speed = 0.001
-	    self.d = 100000
+	    self.d_threshold = 50
 
         # missing counts
         self.lost_count = 0
@@ -106,7 +106,7 @@ class MoveToCar:
 	        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "can't access to the camera..."
 
 
-
+    # detecting function
     def red_dectection(self, frame):
         # Convert BGR to HSV
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
@@ -138,7 +138,9 @@ class MoveToCar:
             # using the the area as a threshold
             # target is found
 	        if areas[max_index] > 100:
+                # mark it down
 	            self.target_found = True
+                print "target is found..."
 		
 		        # write the image to file to check the results: 1. Searching 2. Moving 
 	            cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
@@ -158,10 +160,18 @@ class MoveToCar:
 	    else:
 	        # target is not found
 	        self.target_found = False
+            print "no target yet..."
 	        self.xpos = None
 	        self.ypos = None
-       
-        
+
+    # calculate the proper speed
+    def get_speed(distance):
+        speed = speed_ratio  * (1/reading)
+    
+        speed = max(speed, min_speed)
+        speed = min(speed, max_speed)
+        return speed
+
     # calculate velocity vector (Vx, Vy, Vz) from target position and the speed as the magnitude 
     def get_vel_vector(self, xpos, ypos, speed):
 		x = speed * (xpos - self.img_center_x)
@@ -172,13 +182,11 @@ class MoveToCar:
     # check distance everytime we move to the target
     def check_distance(self, xpos, ypos):
         d_now = math.sqrt(math.pow(xpos - self.img_center_x, 2) + math.pow(ypos - self.img_center_y, 2))
-	    if d_now < 10000:
-	        self.d = d_now
-	        print "distance is %f ..." % self.d
-            if self.d < 40:
-                return 1
-            else:
-                return 0
+        print "distance is %f ..." % d_now
+        if d_now < self.d_threshold:
+            return (d_now, True)
+        else:
+            return (d_now, False)
 
     # send_nav_velocity - send nav_velocity command to vehicle to request it fly in specified direction
     def send_nav_velocity(self, velocity_x, velocity_y, velocity_z):
@@ -207,14 +215,16 @@ class MoveToCar:
 
             # search target
             self.red_dectection(image)
+
+            # get current distance
+            distance, close_enough = self.check_distance(self.xpos, self.ypos)
 	    
             if self.target_found:
                 #print "target locked..." 
-                self.guided_target_vel = self.get_vel_vector(self.xpos, self.ypos, self.speed)
-                self.vehicle_state = 1
+                self.speed = self.get_speed(distance)
 		
 		        # check distance of the target to us
-                if self.check_distance(self.xpos, self.ypos) == 1:
+                if close_enough:
                     print "coming really close..."
 		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "coming really close..."
 		    
@@ -258,6 +268,7 @@ class MoveToCar:
 		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "stop mission because we lost target ..."
         else: 
             print "can't access to the camera..."
+
     # mission complete
     def complete(self):
         if self.v.mode.name != "LOITER":
@@ -267,20 +278,24 @@ class MoveToCar:
 	    
         print "I think I am on top of it!"
 	    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "I think I am on top of it!"
+    
     # main
     def run(self):
         print "initializing..."
         while not self.api.exit:
-            # still setting up the position 
+            # still setting up the position
             if self.initial_state == 1:
                 if self.v.mode.name == "LOITER":
                     self.initial_state = 0
                     print "running main script..."
                     print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "running main script..."
+            # start the mission        
             else:
+                # searching for target
                 if self.vehicle_state == 0:
     	            self.search_target()
 
+                # find target 
                 elif self.vehicle_state == 1:
                     self.v.mode = VehicleMode("GUIDED")
                     self.v.flush()
@@ -288,9 +303,11 @@ class MoveToCar:
     		        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> GUIDED..."
                     self.vehicle_state = 2
 
+                # moving toward target
                 elif self.vehicle_state == 2:
                     self.move_to_target()
 
+                # mission complete
                 elif self.vehicle_state == 3:
                     self.complete()
     		
