@@ -138,19 +138,32 @@ class MoveToCar:
             #### FIXME: need a check on whether it is a target
             # using the the area as a threshold
             # target is found
-            if areas[max_index] > min_target_area & areas[max_index] < max_target_area :
-                # mark it down
-                self.target_found = True
-                print "target is found..."
-        
-                # write the image to file to check the results: 1. Searching 2. Moving 
-                cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
-                if self.vehicle_state == 0:
-                    filename = "Searching: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
-                    cv2.imwrite(filename, frame)
-                elif self.vehicle_state == 2:
-                    filename = "Moving: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
-                    cv2.imwrite(filename, frame)
+            if (areas[max_index] > self.min_target_area) & (areas[max_index] < self.max_target_area) :
+                
+		if self.vehicle_state == 0:
+		    # check three times before locking up this target
+                    if self.find_count < 3:
+                        self.find_count = self.find_count + 1
+		        print "found count...%d " % self.lost_count
+                        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "found count %d " % self.find_count
+		    else:	
+		        # mark it down
+		        self.target_found = True
+    
+                        # write the image to file to check the results: 1. Searching 2. Moving 
+                        cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
+                    
+                        filename = "Searching: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
+                        cv2.imwrite(filename, frame)
+		elif self.vehicle_state == 2:
+		    # mark it down
+		    self.target_found = True
+    
+                    # write the image to file to check the results: 1. Searching 2. Moving 
+                    cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
+	    
+		    filename = "Moving: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
+		    cv2.imwrite(filename, frame)
             else:
                 # target is too small or large to be a valid target
                 print "non-valid area..."
@@ -161,16 +174,15 @@ class MoveToCar:
         else:
             # target is not found
             self.target_found = False
-            print "no target yet..."
             self.xpos = None
             self.ypos = None
 
     # calculate the proper speed
-    def get_speed(distance):
-        speed = speed_ratio  * distance
+    def get_speed(self, distance):
+        speed = self.speed_ratio  * distance
     
-        speed = max(speed, min_speed)
-        speed = min(speed, max_speed)
+        speed = max(speed, self.min_speed)
+        speed = min(speed, self.max_speed)
         return speed
 
     # calculate velocity vector (Vx, Vy, Vz) from target position and the speed as the magnitude 
@@ -216,14 +228,16 @@ class MoveToCar:
 
             # search target
             self.red_dectection(image)
-
-            # get current distance
-            self.dist, close_enough = self.check_distance(self.xpos, self.ypos)
         
             if self.target_found:
                 #print "target locked..." 
+		
+		# get current distance
+                self.dist, close_enough = self.check_distance(self.xpos, self.ypos)
+		
+		# get speed wanted
                 self.speed = self.get_speed(self.dist)
-        
+		
                 # check distance of the target to us
                 if close_enough:
                     print "coming really close..."
@@ -236,7 +250,7 @@ class MoveToCar:
                     # change the state to complete!
                     self.vehicle_state = 3
             
-                    filename = "Final: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:" + str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
+                    filename = "Final: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:" + str(self.xpos) +" y:"+ str(self.ypos) + ".jpg"
                     cv2.imwrite(filename, latest_image)
                 else:
                     # calculate the velocity vector
@@ -252,6 +266,7 @@ class MoveToCar:
                 # check three times before giving up this target
                 if self.lost_count < 3:
                     self.lost_count = self.lost_count + 1
+		    print "not found count...%d " % self.lost_count
                     print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "not found count %d " % self.lost_count
                 # can't find the target, back to searching
                 else:
