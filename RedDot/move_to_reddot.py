@@ -38,19 +38,20 @@ class MoveToCar:
         self.initial_state = 1
 
         # some thresholds to be tuned
-	    self.max_target_area = 10000
-	    self.min_target_area = 500
+	    self.max_target_area = 6000
+	    self.min_target_area = 2500
         self.max_speed = 1.5
 	    self.min_speed = 0.2
-	    self.speed_ratio = 50
+	    self.speed_ratio = 1/250
 	
         # target info
         self.target_found = False
         self.xpos = None
         self.ypos = None
+        self.dist = 500
         self.guided_target_vel = None
         self.speed = 0.001
-	    self.d_threshold = 50
+	    self.d_threshold = 40
 
         # missing counts
         self.lost_count = 0
@@ -137,7 +138,7 @@ class MoveToCar:
             #### FIXME: need a check on whether it is a target
             # using the the area as a threshold
             # target is found
-	        if areas[max_index] > 100:
+	        if areas[max_index] > min_target_area && areas[max_index] > min_target_area :
                 # mark it down
 	            self.target_found = True
                 print "target is found..."
@@ -166,7 +167,7 @@ class MoveToCar:
 
     # calculate the proper speed
     def get_speed(distance):
-        speed = speed_ratio  * (1/reading)
+        speed = speed_ratio  * distance
     
         speed = max(speed, min_speed)
         speed = min(speed, max_speed)
@@ -174,8 +175,8 @@ class MoveToCar:
 
     # calculate velocity vector (Vx, Vy, Vz) from target position and the speed as the magnitude 
     def get_vel_vector(self, xpos, ypos, speed):
-		x = speed * (xpos - self.img_center_x)
-		y = speed * (ypos - self.img_center_y)
+		x = speed * (xpos - self.img_center_x)/self.dist
+		y = speed * (ypos - self.img_center_y)/self.dist
 		z = 0
 		return x, y, z
     
@@ -217,11 +218,11 @@ class MoveToCar:
             self.red_dectection(image)
 
             # get current distance
-            distance, close_enough = self.check_distance(self.xpos, self.ypos)
+            self.dist, close_enough = self.check_distance(self.xpos, self.ypos)
 	    
             if self.target_found:
                 #print "target locked..." 
-                self.speed = self.get_speed(distance)
+                self.speed = self.get_speed(self.dist)
 		
 		        # check distance of the target to us
                 if close_enough:
