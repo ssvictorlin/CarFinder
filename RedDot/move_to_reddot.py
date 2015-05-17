@@ -10,8 +10,8 @@ from droneapi.lib import VehicleMode
 
 class MoveToCar:
 
-	# FIXME - check if vehicle altitude is too low
-	# FIXME - check if we are too far from the desired flightplan
+    # FIXME - check if vehicle altitude is too low
+    # FIXME - check if we are too far from the desired flightplan
     def __init__(self):
 
         # set up the connection with pixhawk
@@ -38,12 +38,12 @@ class MoveToCar:
         self.initial_state = 1
 
         # some thresholds to be tuned
-	    self.max_target_area = 6000
-	    self.min_target_area = 2500
+        self.max_target_area = 6000
+        self.min_target_area = 2500
         self.max_speed = 1.5
-	    self.min_speed = 0.2
-	    self.speed_ratio = 1/250
-	
+        self.min_speed = 0.2
+        self.speed_ratio = 1/250
+    
         # target info
         self.target_found = False
         self.xpos = None
@@ -51,21 +51,21 @@ class MoveToCar:
         self.dist = 500
         self.guided_target_vel = None
         self.speed = 0.001
-	    self.d_threshold = 40
+        self.d_threshold = 40
 
         # missing counts
         self.lost_count = 0
-	
-	    # finding counts
-	    self.find_count = 0
+    
+        # finding counts
+        self.find_count = 0
 
         # open camera
         self.camera = cv2.VideoCapture(0)
         self.camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH,self.img_width)
         self.camera.set(cv2.cv.CV_CAP_PROP_FRAME_HEIGHT,self.img_height)
-	
-	    # print to file
-	    self.filename = "Log: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S") + ".txt"
+    
+        # print to file
+        self.filename = "Log: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S") + ".txt"
         self.f = open("Logs/" + self.filename, 'w')
 
         # check if we can connect to camera
@@ -73,9 +73,9 @@ class MoveToCar:
             print "failed to open camera, exiting!"
             sys.exit(0)
         print "camera is open..."
-	    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "camera is open..."
+        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "camera is open..."
 
-	# find target position in image
+    # find target position in image
     def search_target(self):    
         # get the image from the webcam
         success_flag, image = self.camera.read()
@@ -86,25 +86,25 @@ class MoveToCar:
 
             # search target
             self.red_dectection(image)
-	    
+        
             # target found and we stop immediately to double check
             if self.target_found:
                 print "target found..."
-		        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "target found..."
-		
-		        # mode change to LOITER
+                print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "target found..."
+        
+                # mode change to LOITER
                 self.v.mode = VehicleMode("LOITER")
                 self.v.flush()
                 self.guided_target_vel = self.get_vel_vector(self.xpos, self.ypos, self.speed)
-		        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
-		        # change the state to 1 double check
+                print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
+                # change the state to 1 double check
                 self.vehicle_state = 1
             else:
                 print "still searching target..."
-		        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "still searching target..."        
+                print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "still searching target..."        
         else:
             print "can't access to the camera..." 
-	        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "can't access to the camera..."
+            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "can't access to the camera..."
 
 
     # detecting function
@@ -133,37 +133,37 @@ class MoveToCar:
             self.xpos = x + w/2
             self.ypos = y + h/2
             print "the area is %f ..." % areas[max_index]
-	        Area = areas[max_index]
-	    
+            Area = areas[max_index]
+        
             #### FIXME: need a check on whether it is a target
             # using the the area as a threshold
             # target is found
-	        if areas[max_index] > min_target_area && areas[max_index] > min_target_area :
+            if areas[max_index] > min_target_area & areas[max_index] < max_target_area :
                 # mark it down
-	            self.target_found = True
+                self.target_found = True
                 print "target is found..."
-		
-		        # write the image to file to check the results: 1. Searching 2. Moving 
-	            cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
-	            if self.vehicle_state == 0:
-	                filename = "Searching: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
-	                cv2.imwrite(filename, frame)
-	            elif self.vehicle_state == 2:
-	                filename = "Moving: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
-	                cv2.imwrite(filename, frame)
-	        else:
-	            # target is too small or large to be a valid target
-	            print "non-valid area..."
-	            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "non-valid area..."
-	            self.target_found = False
-	            self.xpos = None
-	            self.ypos = None
-	    else:
-	        # target is not found
-	        self.target_found = False
+        
+                # write the image to file to check the results: 1. Searching 2. Moving 
+                cv2.rectangle(frame ,(x,y), (x+w,y+h), (0, 255,0), 2)
+                if self.vehicle_state == 0:
+                    filename = "Searching: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
+                    cv2.imwrite(filename, frame)
+                elif self.vehicle_state == 2:
+                    filename = "Moving: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:"+ str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
+                    cv2.imwrite(filename, frame)
+            else:
+                # target is too small or large to be a valid target
+                print "non-valid area..."
+                print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "non-valid area..."
+                self.target_found = False
+                self.xpos = None
+                self.ypos = None
+        else:
+            # target is not found
+            self.target_found = False
             print "no target yet..."
-	        self.xpos = None
-	        self.ypos = None
+            self.xpos = None
+            self.ypos = None
 
     # calculate the proper speed
     def get_speed(distance):
@@ -175,10 +175,10 @@ class MoveToCar:
 
     # calculate velocity vector (Vx, Vy, Vz) from target position and the speed as the magnitude 
     def get_vel_vector(self, xpos, ypos, speed):
-		x = speed * (xpos - self.img_center_x)/self.dist
-		y = speed * (ypos - self.img_center_y)/self.dist
-		z = 0
-		return x, y, z
+        x = speed * (xpos - self.img_center_x)/self.dist
+        y = speed * (ypos - self.img_center_y)/self.dist
+        z = 0
+        return x, y, z
     
     # check distance everytime we move to the target
     def check_distance(self, xpos, ypos):
@@ -204,7 +204,7 @@ class MoveToCar:
         # send command to vehicle
         self.v.send_mavlink(msg)
         self.v.flush()
-	
+    
     # move to target by the calculated velocity vector
     #### FIXME: the target might be gone sometimes when we are moving, so how do we fix this?
     def move_to_target(self):
@@ -219,66 +219,66 @@ class MoveToCar:
 
             # get current distance
             self.dist, close_enough = self.check_distance(self.xpos, self.ypos)
-	    
+        
             if self.target_found:
                 #print "target locked..." 
                 self.speed = self.get_speed(self.dist)
-		
-		        # check distance of the target to us
+        
+                # check distance of the target to us
                 if close_enough:
                     print "coming really close..."
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "coming really close..."
-		    
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "coming really close..."
+            
                     self.v.mode = VehicleMode("LOITER")
                     self.v.flush()
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
-		    
-		            # change the state to complete!
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
+            
+                    # change the state to complete!
                     self.vehicle_state = 3
-		    
+            
                     filename = "Final: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S--") + "x:" + str(self.xpos) +" y:"+ str(self.ypos) + " A:" + str(Area) + ".jpg"
                     cv2.imwrite(filename, latest_image)
                 else:
-		            # calculate the velocity vector
+                    # calculate the velocity vector
                     self.guided_target_vel = self.get_vel_vector(self.xpos, self.ypos, self.speed)
                     now = time.time()
                     self.send_nav_velocity(self.guided_target_vel[0], self.guided_target_vel[1], self.guided_target_vel[2])
                     next = time.time()
-		    
-		            print "moving... in speed %f ... for %f secs " % (self.speed, next - now)
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "moving... in speed %f ... for %f secs " % (self.speed, next - now)
+            
+                    print "moving... in speed %f ... for %f secs " % (self.speed, next - now)
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "moving... in speed %f ... for %f secs " % (self.speed, next - now)
                 
             else:
                 # check three times before giving up this target
                 if self.lost_count < 3:
                     self.lost_count = self.lost_count + 1
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "not found count %d " % self.lost_count
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "not found count %d " % self.lost_count
                 # can't find the target, back to searching
                 else:
                     print "lost target..."
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "lost target..."
-		    
-		            # save the image to see why for real cars
-		            filename = "Lost: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S") + ".jpg"
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "lost target..."
+            
+                    # save the image to see why for real cars
+                    filename = "Lost: " + datetime.datetime.now().strftime("%m-%d %H:%M:%S") + ".jpg"
                     cv2.imwrite(filename, latest_image)
-		    
-		            # shoud be back to searching state, but for experiment, we need to stop it for safety  
+            
+                    # shoud be back to searching state, but for experiment, we need to stop it for safety  
                     self.vehicle_state = 4
                     self.lost_count = 0
                     print "stop mission because we lost target ..."
-		            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "stop mission because we lost target ..."
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "stop mission because we lost target ..."
         else: 
             print "can't access to the camera..."
 
     # mission complete
     def complete(self):
         if self.v.mode.name != "LOITER":
-	    self.v.mode = VehicleMode("LOITER")
-	    self.v.flush()
-	    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
-	    
+            self.v.mode = VehicleMode("LOITER")
+            self.v.flush()
+            print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> LOITER..."
+        
         print "I think I am on top of it!"
-	    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "I think I am on top of it!"
+        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "I think I am on top of it!"
     
     # main
     def run(self):
@@ -294,14 +294,14 @@ class MoveToCar:
             else:
                 # searching for target
                 if self.vehicle_state == 0:
-    	            self.search_target()
+                    self.search_target()
 
                 # find target 
                 elif self.vehicle_state == 1:
                     self.v.mode = VehicleMode("GUIDED")
                     self.v.flush()
                     print "Mode change to GUIDED..."
-    		        print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> GUIDED..."
+                    print >> self.f, "[" + datetime.datetime.now().strftime("%m-%d %H:%M:%S:%f") + "]" + "-> GUIDED..."
                     self.vehicle_state = 2
 
                 # moving toward target
@@ -311,9 +311,9 @@ class MoveToCar:
                 # mission complete
                 elif self.vehicle_state == 3:
                     self.complete()
-    		
-    	        else:
-    	            sys.exit(0)
+            
+                else:
+                    sys.exit(0)
 
             time.sleep(0.5)
             
